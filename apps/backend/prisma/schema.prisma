@@ -1,0 +1,26 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ============================================================
+// User — an account holder (identified by phone number)
+// Maps to the User class in SRS Appendix B.3
+// ============================================================
+model User {
+  id              String   @id @default(cuid())
+  phoneNumber     String   @unique
+  preferredName   String?
+  privatePinHash  String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("users")
+}
