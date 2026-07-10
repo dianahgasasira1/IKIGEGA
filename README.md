@@ -21,10 +21,6 @@ micro and informal businesses in Rwanda.
 
 ## Repo layout
 
-Ah — you want the tree diagram formatted properly for the README. The one I gave you earlier had a formatting glitch (backticks inside a code block don't render cleanly on GitHub).
-Here's the corrected block. Copy this into your README.md where the "Repo layout" section is:
-markdown## Repo layout
-
 ```
 ikigega/
 ├── apps/
