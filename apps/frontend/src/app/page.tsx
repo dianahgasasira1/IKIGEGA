@@ -1,65 +1,105 @@
-import Image from "next/image";
+'use client';
 
-export default function Home() {
+import { useState } from 'react';
+import { createUser } from '@/lib/api';
+
+export default function HomePage() {
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [preferredName, setPreferredName] = useState('');
+  const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+  const [message, setMessage] = useState<string>('');
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setStatus('loading');
+    setMessage('');
+
+    try {
+      const user = await createUser({
+        phoneNumber: `+250${phoneNumber}`,
+        preferredName: preferredName || undefined,
+      });
+      setStatus('success');
+      setMessage(`Murakaza neza, ${user.preferredName || 'mama'}!`);
+    } catch (err) {
+      setStatus('error');
+      setMessage(err instanceof Error ? err.message : 'Habaye ikosa');
+    }
+  }
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+    <main className="min-h-screen flex items-center justify-center bg-stone-50 px-4">
+      <div className="w-full max-w-md">
+        <div className="text-center mb-10">
+          <h1 className="text-5xl font-bold text-stone-900 mb-2">Ikigega</h1>
+          <p className="text-stone-600">
+            Ubucuruzi bwawe, mu jwi ryawe.
+          </p>
+          <p className="text-sm text-stone-500 mt-1">
+            Your business, in your voice.
           </p>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
+
+        <form onSubmit={handleSubmit} className="space-y-5">
+          <div>
+            <label htmlFor="phone" className="block text-sm font-medium text-stone-700 mb-2">
+              Nimero ya telefone <span className="text-stone-400">(phone number)</span>
+            </label>
+            <div className="flex">
+              <span className="inline-flex items-center px-4 border border-r-0 border-stone-300 bg-stone-100 text-stone-600 rounded-l-md">
+                +250
+              </span>
+              <input
+                id="phone"
+                type="tel"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                maxLength={9}
+                value={phoneNumber}
+                onChange={(e) => setPhoneNumber(e.target.value.replace(/\D/g, ''))}
+                placeholder="788123456"
+                required
+                className="flex-1 px-4 py-3 border border-stone-300 rounded-r-md focus:outline-none focus:ring-2 focus:ring-stone-900 text-lg"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label htmlFor="name" className="block text-sm font-medium text-stone-700 mb-2">
+              Izina <span className="text-stone-400">(name, optional)</span>
+            </label>
+            <input
+              id="name"
+              type="text"
+              value={preferredName}
+              onChange={(e) => setPreferredName(e.target.value)}
+              placeholder="Mama Uwase"
+              maxLength={50}
+              className="w-full px-4 py-3 border border-stone-300 rounded-md focus:outline-none focus:ring-2 focus:ring-stone-900 text-lg"
             />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+          </div>
+
+          <button
+            type="submit"
+            disabled={status === 'loading' || phoneNumber.length !== 9}
+            className="w-full py-3 px-6 bg-stone-900 text-white font-medium rounded-md hover:bg-stone-800 disabled:opacity-40 disabled:cursor-not-allowed transition text-lg"
           >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
+            {status === 'loading' ? 'Tegereza...' : 'Iyandikishe'}
+          </button>
+        </form>
+
+        {status === 'success' && (
+          <div className="mt-6 p-4 bg-green-50 border border-green-200 rounded-md text-green-800 text-center">
+            {message}
+          </div>
+        )}
+
+        {status === 'error' && (
+          <div className="mt-6 p-4 bg-red-50 border border-red-200 rounded-md text-red-800 text-center">
+            {message}
+          </div>
+        )}
+      </div>
+    </main>
   );
 }
