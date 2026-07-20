@@ -4,25 +4,25 @@ export declare class UsersController {
     private readonly usersService;
     constructor(usersService: UsersService);
     createUser(dto: CreateUserDto): Promise<{
+        id: string;
         phoneNumber: string;
         preferredName: string | null;
-        id: string;
         privatePinHash: string | null;
         createdAt: Date;
         updatedAt: Date;
     }>;
     findAll(): Promise<{
+        id: string;
         phoneNumber: string;
         preferredName: string | null;
-        id: string;
         privatePinHash: string | null;
         createdAt: Date;
         updatedAt: Date;
     }[]>;
     findOne(id: string): Promise<{
+        id: string;
         phoneNumber: string;
         preferredName: string | null;
-        id: string;
         privatePinHash: string | null;
         createdAt: Date;
         updatedAt: Date;

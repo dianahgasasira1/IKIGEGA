@@ -1,15 +1,50 @@
+// Ikigega Prisma schema
+// Maps directly to the Class Diagram in SRS Appendix B.3
+// See docs/srs.pdf for entity semantics
+
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
   provider = "postgresql"
-  url = env("DATABASE_URL")
+  url      = env("DATABASE_URL")
 }
 
 // ============================================================
-// User — an account holder (identified by phone number)
-// Maps to the User class in SRS Appendix B.3
+// ENUMS
+// ============================================================
+
+enum BusinessType {
+  RETAIL
+  WHOLESALE
+  SERVICES
+  FARMING
+  MIXED
+  OTHER
+}
+
+enum TransactionType {
+  SALE
+  PURCHASE
+  EXPENSE
+}
+
+enum MomoEventStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REVERSED
+}
+
+enum RotationFrequency {
+  WEEKLY
+  BIWEEKLY
+  MONTHLY
+}
+
+// ============================================================
+// User — an account holder identified by phone number
 // ============================================================
 model User {
   id              String   @id @default(cuid())
@@ -19,12 +54,187 @@ model User {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
+  // A user owns at most one business (composition)
+  business         Business?
+
+  // A user can be a member of many ibimina groups (many-to-many through Contribution)
+  contributions    Contribution[]
+
+  // A user can chair one or more ibimina groups
+  chairedGroups    IbiminaGroup[] @relation("ChairwomanRelation")
+
   @@map("users")
 }
 
 // ============================================================
-// OtpRequest — a pending phone verification challenge
-// Created when a user submits their phone; consumed when they enter the OTP.
+// Business — the trader's enterprise (1:1 with User)
+// ============================================================
+model Business {
+  id              String       @id @default(cuid())
+  ownerId         String       @unique
+  businessType    BusinessType @default(RETAIL)
+  primaryProducts String[]     @default([])
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  owner           User            @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  inventoryItems  InventoryItem[]
+  transactions    Transaction[]
+  statements      CreditReadinessStatement[]
+
+  @@map("businesses")
+}
+
+// ============================================================
+// InventoryItem — a stock item belonging to a Business
+// ============================================================
+model InventoryItem {
+  id                String   @id @default(cuid())
+  businessId        String
+  name              String
+  currentStock      Decimal  @default(0) @db.Decimal(12, 2)
+  lowStockThreshold Decimal  @default(0) @db.Decimal(12, 2)
+  unitOfMeasure     String   @default("unit")
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  business          Business      @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  transactions      Transaction[]
+
+  @@index([businessId])
+  @@map("inventory_items")
+}
+
+// ============================================================
+// Transaction — a sale, purchase, or expense event
+// ============================================================
+model Transaction {
+  id              String          @id @default(cuid())
+  businessId      String
+  type            TransactionType
+  itemName        String
+  inventoryItemId String?
+  quantity        Decimal         @default(1) @db.Decimal(12, 2)
+  amount          Decimal         @db.Decimal(14, 2)
+  timestamp       DateTime        @default(now())
+  isConfirmed     Boolean         @default(false)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  business        Business        @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  inventoryItem   InventoryItem?  @relation(fields: [inventoryItemId], references: [id], onDelete: SetNull)
+  originalAudio   OriginalAudio?
+  momoEvent       MomoEvent?
+
+  @@index([businessId])
+  @@index([timestamp])
+  @@map("transactions")
+}
+
+// ============================================================
+// OriginalAudio — the voice recording that produced a Transaction
+// 1:0..1 with Transaction, consent-gated retention
+// ============================================================
+model OriginalAudio {
+  id                  String   @id @default(cuid())
+  transactionId       String   @unique
+  audioBlobUrl        String
+  originalTranscript  String
+  correctedTranscript String?
+  confidence          Decimal? @db.Decimal(4, 3)
+  consentToKeep       Boolean  @default(false)
+  createdAt           DateTime @default(now())
+
+  transaction         Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+
+  @@map("original_audio")
+}
+
+// ============================================================
+// MomoEvent — a mobile money payment event (may reconcile to a Transaction)
+// ============================================================
+model MomoEvent {
+  id                    String          @id @default(cuid())
+  transactionId         String?         @unique
+  counterpartyMsisdnHash String
+  amount                Decimal         @db.Decimal(14, 2)
+  status                MomoEventStatus @default(PENDING)
+  externalReference     String          @unique
+  reconciled            Boolean         @default(false)
+  timestamp             DateTime
+  createdAt             DateTime        @default(now())
+
+  transaction           Transaction?    @relation(fields: [transactionId], references: [id], onDelete: SetNull)
+
+  @@index([reconciled])
+  @@index([timestamp])
+  @@map("momo_events")
+}
+
+// ============================================================
+// IbiminaGroup — a rotating savings group
+// ============================================================
+model IbiminaGroup {
+  id                  String            @id @default(cuid())
+  name                String
+  chairwomanId        String
+  contributionAmount  Decimal           @db.Decimal(12, 2)
+  rotationFrequency   RotationFrequency @default(MONTHLY)
+  inviteCode          String            @unique @default(cuid())
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+
+  chairwoman          User              @relation("ChairwomanRelation", fields: [chairwomanId], references: [id], onDelete: Restrict)
+  contributions       Contribution[]
+
+  @@index([chairwomanId])
+  @@map("ibimina_groups")
+}
+
+// ============================================================
+// Contribution — a single member's contribution to an ibimina cycle
+// ============================================================
+model Contribution {
+  id              String   @id @default(cuid())
+  groupId         String
+  memberId        String
+  amount          Decimal  @db.Decimal(12, 2)
+  timestamp       DateTime @default(now())
+  voiceConfirmed  Boolean  @default(false)
+
+  group           IbiminaGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  member          User         @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@index([groupId])
+  @@index([memberId])
+  @@map("contributions")
+}
+
+// ============================================================
+// CreditReadinessStatement — the monthly generated summary
+// ============================================================
+model CreditReadinessStatement {
+  id              String   @id @default(cuid())
+  businessId      String
+  periodStart     DateTime
+  periodEnd       DateTime
+  revenue         Decimal  @db.Decimal(14, 2)
+  costs           Decimal  @db.Decimal(14, 2)
+  profit          Decimal  @db.Decimal(14, 2)
+  readinessScore  Decimal  @db.Decimal(5, 2)
+  pdfUrl          String?
+  shareToken      String   @unique @default(cuid())
+  createdAt       DateTime @default(now())
+
+  business        Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@index([businessId])
+  @@index([periodEnd])
+  @@map("credit_readiness_statements")
+}
+
+// ============================================================
+// OtpRequest — existing table for phone verification challenges
 // ============================================================
 model OtpRequest {
   id          String   @id @default(cuid())
