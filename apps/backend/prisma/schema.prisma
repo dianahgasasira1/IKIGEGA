@@ -21,3 +21,19 @@ model User {
 
   @@map("users")
 }
+
+// ============================================================
+// OtpRequest — a pending phone verification challenge
+// Created when a user submits their phone; consumed when they enter the OTP.
+// ============================================================
+model OtpRequest {
+  id          String   @id @default(cuid())
+  phoneNumber String
+  otpHash     String
+  expiresAt   DateTime
+  consumed    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  @@index([phoneNumber])
+  @@map("otp_requests")
+}
