@@ -1,22 +1,34 @@
 /**
- * Ikigega API client — a thin wrapper around fetch()
- * for talking to the NestJS backend at http://localhost:3001
+ * Ikigega API client
+ * Talks to the NestJS backend at http://localhost:3001
  */
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+
+// ============================================================
+// Types
+// ============================================================
 
 export type User = {
   id: string;
   phoneNumber: string;
   preferredName: string | null;
-  privatePinHash: string | null;
   createdAt: string;
-  updatedAt: string;
 };
 
-export type CreateUserInput = {
+export type RegisterResponse = {
+  message: string;
   phoneNumber: string;
-  preferredName?: string;
+  expiresInMinutes: number;
+};
+
+export type VerifyOtpResponse = {
+  token: string;
+  user: {
+    id: string;
+    phoneNumber: string;
+    preferredName: string | null;
+  };
 };
 
 export type ApiError = {
@@ -25,22 +37,60 @@ export type ApiError = {
   statusCode: number;
 };
 
-/**
- * Register a new user by phone number.
- * Throws on non-2xx responses with the backend's error payload.
- */
-export async function createUser(input: CreateUserInput): Promise<User> {
-  const response = await fetch(`${API_BASE_URL}/users`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(input),
-  });
+// ============================================================
+// Helper: throws a real Error on non-2xx responses
+// ============================================================
 
+async function handleResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
     const error = (await response.json()) as ApiError;
     const messages = Array.isArray(error.message) ? error.message.join(', ') : error.message;
     throw new Error(messages || 'Something went wrong');
   }
+  return response.json() as Promise<T>;
+}
 
-  return response.json() as Promise<User>;
+// ============================================================
+// Auth endpoints
+// ============================================================
+
+/**
+ * Step 1 of registration: request an OTP for a phone number.
+ */
+export async function requestOtp(phoneNumber: string): Promise<RegisterResponse> {
+  const response = await fetch(`${API_BASE_URL}/auth/register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ phoneNumber }),
+  });
+  return handleResponse<RegisterResponse>(response);
+}
+
+/**
+ * Step 2 of registration: submit the OTP + optional name to receive a JWT.
+ */
+export async function verifyOtp(input: {
+  phoneNumber: string;
+  otp: string;
+  preferredName?: string;
+}): Promise<VerifyOtpResponse> {
+  const response = await fetch(`${API_BASE_URL}/auth/verify-otp`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  return handleResponse<VerifyOtpResponse>(response);
+}
+
+/**
+ * Get the currently-logged-in user's profile.
+ * Requires a valid JWT.
+ */
+export async function getMe(token: string): Promise<User> {
+  const response = await fetch(`${API_BASE_URL}/auth/me`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  return handleResponse<User>(response);
 }
