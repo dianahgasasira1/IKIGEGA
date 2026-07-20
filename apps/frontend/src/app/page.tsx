@@ -91,7 +91,7 @@ export default function HomePage() {
                   onChange={(e) => setPhoneNumber(e.target.value.replace(/\D/g, ''))}
                   placeholder="788123456"
                   required
-                  className="flex-1 px-4 py-3 border border-stone-300 rounded-r-md focus:outline-none focus:ring-2 focus:ring-stone-900 text-lg"
+                  className="flex-1 px-4 py-3 border border-stone-300 rounded-r-md focus:outline-none focus:ring-2 focus:ring-stone-900 text-lg text-stone-900 placeholder:text-stone-400"
                 />
               </div>
             </div>
@@ -135,7 +135,7 @@ export default function HomePage() {
                 placeholder="123456"
                 required
                 autoFocus
-                className="w-full px-4 py-3 border border-stone-300 rounded-md focus:outline-none focus:ring-2 focus:ring-stone-900 text-2xl tracking-widest text-center"
+                className="w-full px-4 py-3 border border-stone-300 rounded-md focus:outline-none focus:ring-2 focus:ring-stone-900 text-2xl tracking-widest text-center text-stone-900 placeholder:text-stone-400"
               />
             </div>
 
@@ -150,7 +150,7 @@ export default function HomePage() {
                 onChange={(e) => setPreferredName(e.target.value)}
                 placeholder="Mama Uwase"
                 maxLength={50}
-                className="w-full px-4 py-3 border border-stone-300 rounded-md focus:outline-none focus:ring-2 focus:ring-stone-900 text-lg"
+                className="w-full px-4 py-3 border border-stone-300 rounded-md focus:outline-none focus:ring-2 focus:ring-stone-900 text-lg text-stone-900 placeholder:text-stone-400"
               />
             </div>
 

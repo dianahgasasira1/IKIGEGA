@@ -94,3 +94,62 @@ export async function getMe(token: string): Promise<User> {
   });
   return handleResponse<User>(response);
 }
+
+// ============================================================
+// Transactions
+// ============================================================
+
+export type TransactionType = 'SALE' | 'PURCHASE' | 'EXPENSE';
+
+export type Transaction = {
+  id: string;
+  businessId: string;
+  type: TransactionType;
+  itemName: string;
+  inventoryItemId: string | null;
+  quantity: string; // Prisma Decimal comes across as string
+  amount: string;
+  timestamp: string;
+  isConfirmed: boolean;
+  inventoryItem?: {
+    name: string;
+    unitOfMeasure: string;
+  } | null;
+};
+
+export type CreateTransactionInput = {
+  type: TransactionType;
+  itemName: string;
+  quantity?: number;
+  amount: number;
+};
+
+export async function createTransaction(
+  token: string,
+  input: CreateTransactionInput,
+): Promise<Transaction> {
+  const response = await fetch(`${API_BASE_URL}/transactions`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(input),
+  });
+  return handleResponse<Transaction>(response);
+}
+
+export async function listTransactions(
+  token: string,
+  limit = 20,
+): Promise<Transaction[]> {
+  const response = await fetch(
+    `${API_BASE_URL}/transactions?limit=${limit}`,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    },
+  );
+  return handleResponse<Transaction[]>(response);
+}
