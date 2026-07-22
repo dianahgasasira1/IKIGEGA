@@ -6,9 +6,11 @@ import {
   getMe,
   createTransaction,
   listTransactions,
+  getTodaySummary,
   type User,
   type Transaction,
   type TransactionType,
+  type DailySummary,
 } from '@/lib/api';
 import { getToken, clearToken } from '@/lib/auth';
 
@@ -24,6 +26,10 @@ export default function DashboardPage() {
   const [user, setUser] = useState<User | null>(null);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const [summary, setSummary] = useState<DailySummary | null>(null);
+  const [summaryLoading, setSummaryLoading] = useState(false);
+  const [summaryError, setSummaryError] = useState('');
 
   const [type, setType] = useState<TransactionType>('SALE');
   const [itemName, setItemName] = useState('');
@@ -60,6 +66,23 @@ export default function DashboardPage() {
   useEffect(() => {
     loadDashboard();
   }, [loadDashboard]);
+
+  async function handleGetSummary() {
+    const token = getToken();
+    if (!token) return;
+
+    setSummaryLoading(true);
+    setSummaryError('');
+
+    try {
+      const result = await getTodaySummary(token);
+      setSummary(result);
+    } catch (err) {
+      setSummaryError(err instanceof Error ? err.message : 'Habaye ikosa');
+    } finally {
+      setSummaryLoading(false);
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -125,6 +148,87 @@ export default function DashboardPage() {
             Sohoka
           </button>
         </header>
+
+        {/* Today's summary */}
+        <section className="bg-white p-6 rounded-lg border border-stone-200 mb-8">
+          <h2 className="text-lg font-semibold mb-1 text-stone-900">
+            Amakuru y'uyu munsi
+          </h2>
+          <p className="text-sm text-stone-500 mb-5">
+            Incamake y'uyu munsi (Today's summary)
+          </p>
+
+          {!summary ? (
+            <button
+              onClick={handleGetSummary}
+              disabled={summaryLoading}
+              className="w-full py-3 px-6 bg-stone-900 text-white font-medium rounded-md hover:bg-stone-800 disabled:opacity-40 disabled:cursor-not-allowed transition"
+            >
+              {summaryLoading ? 'Tegereza...' : 'Reba amakuru y\'uyu munsi'}
+            </button>
+          ) : (
+            <div className="space-y-4">
+              <p className="text-lg text-stone-900 leading-relaxed">
+                {summary.spokenKinyarwanda}
+              </p>
+              <p className="text-sm text-stone-500 leading-relaxed italic">
+                {summary.spokenEnglish}
+              </p>
+
+              <div className="grid grid-cols-3 gap-3 pt-2">
+                <div className="text-center p-3 bg-green-50 rounded-md border border-green-100">
+                  <div className="text-xs text-green-700 mb-1">Ubugurishe</div>
+                  <div className="text-lg font-semibold text-green-800">
+                    {summary.revenue.toLocaleString()}
+                  </div>
+                  <div className="text-xs text-green-600">RWF</div>
+                </div>
+                <div className="text-center p-3 bg-stone-50 rounded-md border border-stone-200">
+                  <div className="text-xs text-stone-600 mb-1">Igishoro</div>
+                  <div className="text-lg font-semibold text-stone-800">
+                    {(summary.expenses + summary.purchases).toLocaleString()}
+                  </div>
+                  <div className="text-xs text-stone-500">RWF</div>
+                </div>
+                <div
+                  className={`text-center p-3 rounded-md border ${
+                    summary.netProfit >= 0
+                      ? 'bg-blue-50 border-blue-100'
+                      : 'bg-red-50 border-red-100'
+                  }`}
+                >
+                  <div className={`text-xs mb-1 ${summary.netProfit >= 0 ? 'text-blue-700' : 'text-red-700'}`}>
+                    {summary.netProfit >= 0 ? 'Inyungu' : 'Igihombo'}
+                  </div>
+                  <div
+                    className={`text-lg font-semibold ${
+                      summary.netProfit >= 0 ? 'text-blue-800' : 'text-red-800'
+                    }`}
+                  >
+                    {Math.abs(summary.netProfit).toLocaleString()}
+                  </div>
+                  <div className={`text-xs ${summary.netProfit >= 0 ? 'text-blue-600' : 'text-red-600'}`}>
+                    RWF
+                  </div>
+                </div>
+              </div>
+
+              <button
+                onClick={handleGetSummary}
+                disabled={summaryLoading}
+                className="w-full py-2 text-sm text-stone-600 hover:text-stone-900 transition"
+              >
+                ↻ Ongera utangire (refresh)
+              </button>
+
+              {summaryError && (
+                <p className="text-sm text-red-800 bg-red-50 border border-red-200 rounded-md p-3">
+                  {summaryError}
+                </p>
+              )}
+            </div>
+          )}
+        </section>
 
         {/* Log transaction form */}
         <section className="bg-white p-6 rounded-lg border border-stone-200 mb-8">

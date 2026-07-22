@@ -153,3 +153,27 @@ export async function listTransactions(
   );
   return handleResponse<Transaction[]>(response);
 }
+
+// ============================================================
+// Summary
+// ============================================================
+
+export type DailySummary = {
+  date: string;
+  revenue: number;
+  expenses: number;
+  purchases: number;
+  netProfit: number;
+  transactionCount: number;
+  spokenKinyarwanda: string;
+  spokenEnglish: string;
+};
+
+export async function getTodaySummary(token: string): Promise<DailySummary> {
+  const response = await fetch(`${API_BASE_URL}/summary/today`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  return handleResponse<DailySummary>(response);
+}
