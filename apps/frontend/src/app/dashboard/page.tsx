@@ -343,7 +343,7 @@ export default function DashboardPage() {
         {/* Recent transactions */}
         <section className="bg-white p-6 rounded-lg border border-stone-200">
           <h2 className="text-lg font-semibold mb-1 text-stone-900">
-            Ibyanditswe vuba
+            Ibicuruzwa bya vuba
           </h2>
           <p className="text-sm text-stone-500 mb-5">
             Recent transactions
@@ -351,7 +351,7 @@ export default function DashboardPage() {
 
           {transactions.length === 0 ? (
             <p className="text-sm text-stone-500 text-center py-8">
-              Nta bwanditswe bwabaye. Andika ubwa mbere hejuru.
+              Nta bucuruzi bwabaye. Andika ubwa mbere hejuru.
               <br />
               <span className="text-stone-400">
                 No transactions yet. Log your first one above.
@@ -379,10 +379,6 @@ export default function DashboardPage() {
             </ul>
           )}
         </section>
-
-        <p className="text-center text-xs text-stone-500 mt-8">
-          Ikigega · Sprint 2
-        </p>
       </div>
     </main>
   );

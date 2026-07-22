@@ -105,7 +105,7 @@ export default function HomePage() {
             </button>
 
             <p className="text-xs text-stone-500 text-center">
-              Uzabona kode ya SMS igizwe n'imibare 6.
+              Urabona kode ya SMS igizwe n'imibare 6.
               <br />
               You'll receive a 6-digit code via SMS.
             </p>
