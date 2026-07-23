@@ -7,12 +7,17 @@ import {
   createTransaction,
   listTransactions,
   getTodaySummary,
+  uploadVoiceRecording,
+  confirmVoiceProposal,
+  rejectVoiceProposal,
   type User,
   type Transaction,
   type TransactionType,
   type DailySummary,
+  type VoiceProposal,
 } from '@/lib/api';
 import { getToken, clearToken } from '@/lib/auth';
+import { useVoiceRecorder } from '@/hooks/useVoiceRecorder';
 
 const TYPE_LABELS: Record<TransactionType, { rw: string; en: string }> = {
   SALE: { rw: 'Ubugurishe', en: 'Sale' },
@@ -25,11 +30,8 @@ export default function DashboardPage() {
 
   const [user, setUser] = useState<User | null>(null);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [dailySummary, setDailySummary] = useState<DailySummary | null>(null);
   const [loading, setLoading] = useState(true);
-
-  const [summary, setSummary] = useState<DailySummary | null>(null);
-  const [summaryLoading, setSummaryLoading] = useState(false);
-  const [summaryError, setSummaryError] = useState('');
 
   const [type, setType] = useState<TransactionType>('SALE');
   const [itemName, setItemName] = useState('');
@@ -40,6 +42,11 @@ export default function DashboardPage() {
   const [formError, setFormError] = useState('');
   const [flashMessage, setFlashMessage] = useState('');
 
+  const recorder = useVoiceRecorder();
+  const [proposal, setProposal] = useState<VoiceProposal | null>(null);
+  const [voiceLoading, setVoiceLoading] = useState(false);
+  const [voiceError, setVoiceError] = useState('');
+
   const loadDashboard = useCallback(async () => {
     const token = getToken();
     if (!token) {
@@ -48,12 +55,14 @@ export default function DashboardPage() {
     }
 
     try {
-      const [meResult, txResult] = await Promise.all([
+      const [meResult, txResult, summaryResult] = await Promise.all([
         getMe(token),
         listTransactions(token, 10),
+        getTodaySummary(token),
       ]);
       setUser(meResult);
       setTransactions(txResult);
+      setDailySummary(summaryResult);
     } catch {
       clearToken();
       router.push('/');
@@ -66,23 +75,6 @@ export default function DashboardPage() {
   useEffect(() => {
     loadDashboard();
   }, [loadDashboard]);
-
-  async function handleGetSummary() {
-    const token = getToken();
-    if (!token) return;
-
-    setSummaryLoading(true);
-    setSummaryError('');
-
-    try {
-      const result = await getTodaySummary(token);
-      setSummary(result);
-    } catch (err) {
-      setSummaryError(err instanceof Error ? err.message : 'Habaye ikosa');
-    } finally {
-      setSummaryLoading(false);
-    }
-  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -101,19 +93,82 @@ export default function DashboardPage() {
         amount: parseFloat(amount),
       });
 
-      // reset form
       setItemName('');
       setQuantity('1');
       setAmount('');
       setFlashMessage('Byanditswe neza! (saved)');
 
-      // reload the list
-      const updated = await listTransactions(token, 10);
+      const [updated, refreshedSummary] = await Promise.all([
+        listTransactions(token, 10),
+        getTodaySummary(token),
+      ]);
       setTransactions(updated);
+      setDailySummary(refreshedSummary);
     } catch (err) {
       setFormError(err instanceof Error ? err.message : 'Habaye ikosa');
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  async function handleUploadRecording() {
+    const token = getToken();
+    if (!token || !recorder.audioBlob) return;
+
+    setVoiceLoading(true);
+    setVoiceError('');
+
+    try {
+      const result = await uploadVoiceRecording(token, recorder.audioBlob);
+      setProposal(result);
+    } catch (err) {
+      setVoiceError(err instanceof Error ? err.message : 'Habaye ikosa');
+    } finally {
+      setVoiceLoading(false);
+    }
+  }
+
+  async function handleConfirmProposal() {
+    const token = getToken();
+    if (!token || !proposal) return;
+
+    setVoiceLoading(true);
+    setVoiceError('');
+
+    try {
+      await confirmVoiceProposal(token, proposal.audioId);
+
+      const [updated, refreshedSummary] = await Promise.all([
+        listTransactions(token, 10),
+        getTodaySummary(token),
+      ]);
+      setTransactions(updated);
+      setDailySummary(refreshedSummary);
+
+      setProposal(null);
+      recorder.reset();
+    } catch (err) {
+      setVoiceError(err instanceof Error ? err.message : 'Habaye ikosa');
+    } finally {
+      setVoiceLoading(false);
+    }
+  }
+
+  async function handleRejectProposal() {
+    const token = getToken();
+    if (!token || !proposal) return;
+
+    setVoiceLoading(true);
+    setVoiceError('');
+
+    try {
+      await rejectVoiceProposal(token, proposal.audioId);
+      setProposal(null);
+      recorder.reset();
+    } catch (err) {
+      setVoiceError(err instanceof Error ? err.message : 'Habaye ikosa');
+    } finally {
+      setVoiceLoading(false);
     }
   }
 
@@ -150,83 +205,218 @@ export default function DashboardPage() {
         </header>
 
         {/* Today's summary */}
-        <section className="bg-white p-6 rounded-lg border border-stone-200 mb-8">
-          <h2 className="text-lg font-semibold mb-1 text-stone-900">
-            Amakuru y'uyu munsi
-          </h2>
-          <p className="text-sm text-stone-500 mb-5">
-            Incamake y'uyu munsi (Today's summary)
-          </p>
+        {dailySummary && (
+          <section className="bg-white p-6 rounded-lg border border-stone-200 mb-8">
+            <h2 className="text-lg font-semibold mb-1 text-stone-900">
+              Nyagorora umutungo
+            </h2>
+            <p className="text-sm text-stone-500 mb-5">Today's summary</p>
 
-          {!summary ? (
-            <button
-              onClick={handleGetSummary}
-              disabled={summaryLoading}
-              className="w-full py-3 px-6 bg-stone-900 text-white font-medium rounded-md hover:bg-stone-800 disabled:opacity-40 disabled:cursor-not-allowed transition"
-            >
-              {summaryLoading ? 'Tegereza...' : 'Reba amakuru y\'uyu munsi'}
-            </button>
-          ) : (
-            <div className="space-y-4">
-              <p className="text-lg text-stone-900 leading-relaxed">
-                {summary.spokenKinyarwanda}
-              </p>
-              <p className="text-sm text-stone-500 leading-relaxed italic">
-                {summary.spokenEnglish}
-              </p>
+            <p className="text-lg text-stone-900 leading-relaxed mb-2">
+              {dailySummary.spokenKinyarwanda}
+            </p>
+            <p className="text-sm text-stone-500 leading-relaxed italic mb-5">
+              {dailySummary.spokenEnglish}
+            </p>
 
-              <div className="grid grid-cols-3 gap-3 pt-2">
-                <div className="text-center p-3 bg-green-50 rounded-md border border-green-100">
-                  <div className="text-xs text-green-700 mb-1">Ubugurishe</div>
-                  <div className="text-lg font-semibold text-green-800">
-                    {summary.revenue.toLocaleString()}
-                  </div>
-                  <div className="text-xs text-green-600">RWF</div>
+            <div className="grid grid-cols-3 gap-3">
+              <div className="text-center p-3 bg-green-50 rounded-md border border-green-100">
+                <div className="text-xs text-green-700 mb-1">Ubugurishe</div>
+                <div className="text-lg font-semibold text-green-800">
+                  {dailySummary.revenue.toLocaleString()}
                 </div>
-                <div className="text-center p-3 bg-stone-50 rounded-md border border-stone-200">
-                  <div className="text-xs text-stone-600 mb-1">Igishoro</div>
-                  <div className="text-lg font-semibold text-stone-800">
-                    {(summary.expenses + summary.purchases).toLocaleString()}
-                  </div>
-                  <div className="text-xs text-stone-500">RWF</div>
+                <div className="text-xs text-green-600">RWF</div>
+              </div>
+              <div className="text-center p-3 bg-stone-50 rounded-md border border-stone-200">
+                <div className="text-xs text-stone-600 mb-1">Igishoro</div>
+                <div className="text-lg font-semibold text-stone-800">
+                  {(dailySummary.expenses + dailySummary.purchases).toLocaleString()}
                 </div>
+                <div className="text-xs text-stone-500">RWF</div>
+              </div>
+              <div
+                className={`text-center p-3 rounded-md border ${
+                  dailySummary.netProfit >= 0
+                    ? 'bg-blue-50 border-blue-100'
+                    : 'bg-red-50 border-red-100'
+                }`}
+              >
                 <div
-                  className={`text-center p-3 rounded-md border ${
-                    summary.netProfit >= 0
-                      ? 'bg-blue-50 border-blue-100'
-                      : 'bg-red-50 border-red-100'
+                  className={`text-xs mb-1 ${
+                    dailySummary.netProfit >= 0 ? 'text-blue-700' : 'text-red-700'
                   }`}
                 >
-                  <div className={`text-xs mb-1 ${summary.netProfit >= 0 ? 'text-blue-700' : 'text-red-700'}`}>
-                    {summary.netProfit >= 0 ? 'Inyungu' : 'Igihombo'}
-                  </div>
-                  <div
-                    className={`text-lg font-semibold ${
-                      summary.netProfit >= 0 ? 'text-blue-800' : 'text-red-800'
-                    }`}
-                  >
-                    {Math.abs(summary.netProfit).toLocaleString()}
-                  </div>
-                  <div className={`text-xs ${summary.netProfit >= 0 ? 'text-blue-600' : 'text-red-600'}`}>
-                    RWF
-                  </div>
+                  {dailySummary.netProfit >= 0 ? 'Inyungu' : 'Igihombo'}
+                </div>
+                <div
+                  className={`text-lg font-semibold ${
+                    dailySummary.netProfit >= 0 ? 'text-blue-800' : 'text-red-800'
+                  }`}
+                >
+                  {Math.abs(dailySummary.netProfit).toLocaleString()}
+                </div>
+                <div
+                  className={`text-xs ${
+                    dailySummary.netProfit >= 0 ? 'text-blue-600' : 'text-red-600'
+                  }`}
+                >
+                  RWF
                 </div>
               </div>
+            </div>
+          </section>
+        )}
 
-              <button
-                onClick={handleGetSummary}
-                disabled={summaryLoading}
-                className="w-full py-2 text-sm text-stone-600 hover:text-stone-900 transition"
-              >
-                ↻ Ongera utangire (refresh)
-              </button>
+        {/* Voice logging */}
+        <section className="bg-white p-6 rounded-lg border border-stone-200 mb-8">
+          <h2 className="text-lg font-semibold mb-1 text-stone-900">
+            Vuga ubucuruzi
+          </h2>
+          <p className="text-sm text-stone-500 mb-5">Log by voice</p>
 
-              {summaryError && (
-                <p className="text-sm text-red-800 bg-red-50 border border-red-200 rounded-md p-3">
-                  {summaryError}
-                </p>
+          {!proposal && (
+            <div className="text-center">
+              {recorder.status === 'idle' && (
+                <button
+                  onClick={recorder.startRecording}
+                  className="w-24 h-24 rounded-full bg-stone-900 text-white text-4xl hover:bg-stone-800 transition"
+                  aria-label="Start recording"
+                >
+                  🎤
+                </button>
+              )}
+
+              {recorder.status === 'requesting-permission' && (
+                <p className="text-stone-600">Tegereza uruhushya...</p>
+              )}
+
+              {recorder.status === 'recording' && (
+                <div>
+                  <button
+                    onClick={recorder.stopRecording}
+                    className="w-24 h-24 rounded-full bg-red-600 text-white text-4xl hover:bg-red-700 transition animate-pulse"
+                    aria-label="Stop recording"
+                  >
+                    ⏹
+                  </button>
+                  <p className="mt-3 text-sm text-red-700 font-medium">
+                    Uravuga... (recording)
+                  </p>
+                </div>
+              )}
+
+              {recorder.status === 'stopped' && (
+                <div className="space-y-3">
+                  <div className="text-4xl">🎧</div>
+                  <p className="text-sm text-stone-600">
+                    Byabitse. Umva nanone maze wemeze.
+                    <br />
+                    <span className="text-stone-400">Recorded. Listen and confirm.</span>
+                  </p>
+                  {recorder.audioBlob && (
+                    <audio
+                      controls
+                      src={URL.createObjectURL(recorder.audioBlob)}
+                      className="w-full"
+                    />
+                  )}
+                  <div className="flex gap-2">
+                    <button
+                      onClick={handleUploadRecording}
+                      disabled={voiceLoading}
+                      className="flex-1 py-2 px-4 bg-stone-900 text-white text-sm font-medium rounded-md hover:bg-stone-800 disabled:opacity-40 transition"
+                    >
+                      {voiceLoading ? 'Tegereza...' : 'Ohereza (send)'}
+                    </button>
+                    <button
+                      onClick={recorder.reset}
+                      className="flex-1 py-2 px-4 border border-stone-300 text-stone-700 text-sm font-medium rounded-md hover:bg-stone-50 transition"
+                    >
+                      Ongera (redo)
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {recorder.status === 'error' && (
+                <div>
+                  <p className="text-sm text-red-800 bg-red-50 border border-red-200 rounded-md p-3">
+                    {recorder.error || 'Habaye ikosa'}
+                  </p>
+                  <button
+                    onClick={recorder.reset}
+                    className="mt-3 text-sm text-stone-600 hover:text-stone-900"
+                  >
+                    Ongera ugerageze (try again)
+                  </button>
+                </div>
               )}
             </div>
+          )}
+
+          {proposal && (
+            <div className="space-y-4">
+              <p className="text-sm text-stone-500 mb-1">Wavuze:</p>
+              <p className="text-lg text-stone-900 italic">
+                "{proposal.proposed.originalTranscript}"
+              </p>
+
+              <div className="bg-stone-50 rounded-md p-4 border border-stone-200">
+                <p className="text-sm text-stone-500 mb-3">Twumva:</p>
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <span className="text-stone-500">Ubwoko:</span>{' '}
+                    <span className="font-medium text-stone-900">
+                      {TYPE_LABELS[proposal.proposed.type].rw}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-stone-500">Ikintu:</span>{' '}
+                    <span className="font-medium text-stone-900">
+                      {proposal.proposed.itemName}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-stone-500">Ingano:</span>{' '}
+                    <span className="font-medium text-stone-900">
+                      {proposal.proposed.quantity}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-stone-500">Amafaranga:</span>{' '}
+                    <span className="font-medium text-stone-900">
+                      {proposal.proposed.amount.toLocaleString()} RWF
+                    </span>
+                  </div>
+                </div>
+                <p className="text-xs text-stone-400 mt-3">
+                  Ikizere: {Math.round(proposal.proposed.confidence * 100)}%
+                </p>
+              </div>
+
+              <div className="flex gap-2">
+                <button
+                  onClick={handleConfirmProposal}
+                  disabled={voiceLoading}
+                  className="flex-1 py-3 px-4 bg-green-700 text-white font-medium rounded-md hover:bg-green-800 disabled:opacity-40 transition"
+                >
+                  {voiceLoading ? 'Tegereza...' : 'Emeza (yes, save)'}
+                </button>
+                <button
+                  onClick={handleRejectProposal}
+                  disabled={voiceLoading}
+                  className="flex-1 py-3 px-4 border border-stone-300 text-stone-700 font-medium rounded-md hover:bg-stone-50 disabled:opacity-40 transition"
+                >
+                  Oya (no, redo)
+                </button>
+              </div>
+            </div>
+          )}
+
+          {voiceError && (
+            <p className="mt-4 text-sm text-red-800 bg-red-50 border border-red-200 rounded-md p-3">
+              {voiceError}
+            </p>
           )}
         </section>
 
@@ -235,12 +425,9 @@ export default function DashboardPage() {
           <h2 className="text-lg font-semibold mb-1 text-stone-900">
             Andika ubucuruzi
           </h2>
-          <p className="text-sm text-stone-500 mb-5">
-            Log a transaction
-          </p>
+          <p className="text-sm text-stone-500 mb-5">Log a transaction</p>
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Type picker */}
             <div>
               <label className="block text-sm font-medium text-stone-700 mb-2">
                 Ubwoko <span className="text-stone-400">(type)</span>
@@ -258,7 +445,11 @@ export default function DashboardPage() {
                     }`}
                   >
                     <div>{TYPE_LABELS[t].rw}</div>
-                    <div className={`text-xs ${type === t ? 'text-stone-300' : 'text-stone-400'}`}>
+                    <div
+                      className={`text-xs ${
+                        type === t ? 'text-stone-300' : 'text-stone-400'
+                      }`}
+                    >
                       {TYPE_LABELS[t].en}
                     </div>
                   </button>
@@ -266,9 +457,11 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            {/* Item name */}
             <div>
-              <label htmlFor="itemName" className="block text-sm font-medium text-stone-700 mb-2">
+              <label
+                htmlFor="itemName"
+                className="block text-sm font-medium text-stone-700 mb-2"
+              >
                 Ikintu <span className="text-stone-400">(item)</span>
               </label>
               <input
@@ -279,14 +472,16 @@ export default function DashboardPage() {
                 placeholder="ibitunguru"
                 required
                 maxLength={100}
-                className="w-full px-4 py-3 border border-stone-300 rounded-md focus:outline-none focus:ring-2 focus:ring-stone-900 placeholder:text-stone-400"
+                className="w-full px-4 py-3 border border-stone-300 rounded-md focus:outline-none focus:ring-2 focus:ring-stone-900 text-stone-900 placeholder:text-stone-400"
               />
             </div>
 
-            {/* Quantity + Amount row */}
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label htmlFor="quantity" className="block text-sm font-medium text-stone-700 mb-2">
+                <label
+                  htmlFor="quantity"
+                  className="block text-sm font-medium text-stone-700 mb-2"
+                >
                   Ingano <span className="text-stone-400">(qty)</span>
                 </label>
                 <input
@@ -301,7 +496,10 @@ export default function DashboardPage() {
                 />
               </div>
               <div>
-                <label htmlFor="amount" className="block text-sm font-medium text-stone-700 mb-2">
+                <label
+                  htmlFor="amount"
+                  className="block text-sm font-medium text-stone-700 mb-2"
+                >
                   Amafaranga <span className="text-stone-400">(RWF)</span>
                 </label>
                 <input
@@ -343,11 +541,9 @@ export default function DashboardPage() {
         {/* Recent transactions */}
         <section className="bg-white p-6 rounded-lg border border-stone-200">
           <h2 className="text-lg font-semibold mb-1 text-stone-900">
-            Ibicuruzwa bya vuba
+            Ubucuruzi bwa vuba
           </h2>
-          <p className="text-sm text-stone-500 mb-5">
-            Recent transactions
-          </p>
+          <p className="text-sm text-stone-500 mb-5">Recent transactions</p>
 
           {transactions.length === 0 ? (
             <p className="text-sm text-stone-500 text-center py-8">
@@ -360,11 +556,15 @@ export default function DashboardPage() {
           ) : (
             <ul className="divide-y divide-stone-200">
               {transactions.map((tx) => (
-                <li key={tx.id} className="py-3 flex justify-between items-center">
+                <li
+                  key={tx.id}
+                  className="py-3 flex justify-between items-center"
+                >
                   <div>
                     <div className="font-medium text-stone-900">{tx.itemName}</div>
                     <div className="text-xs text-stone-500">
-                      {TYPE_LABELS[tx.type].rw} · {parseFloat(tx.quantity)} · {new Date(tx.timestamp).toLocaleDateString()}
+                      {TYPE_LABELS[tx.type].rw} · {parseFloat(tx.quantity)} ·{' '}
+                      {new Date(tx.timestamp).toLocaleDateString()}
                     </div>
                   </div>
                   <div
@@ -372,7 +572,8 @@ export default function DashboardPage() {
                       tx.type === 'SALE' ? 'text-green-700' : 'text-stone-700'
                     }`}
                   >
-                    {tx.type === 'SALE' ? '+' : '−'} {parseFloat(tx.amount).toLocaleString()} RWF
+                    {tx.type === 'SALE' ? '+' : '−'}{' '}
+                    {parseFloat(tx.amount).toLocaleString()} RWF
                   </div>
                 </li>
               ))}

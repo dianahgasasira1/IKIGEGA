@@ -8,14 +8,14 @@ export declare class TransactionsService {
     constructor(prisma: PrismaService, businesses: BusinessesService);
     createForUser(userId: string, dto: CreateTransactionDto): Promise<{
         id: string;
+        createdAt: Date;
+        updatedAt: Date;
         type: import("@prisma/client").$Enums.TransactionType;
         itemName: string;
         quantity: import("@prisma/client/runtime/library").Decimal;
         amount: import("@prisma/client/runtime/library").Decimal;
         timestamp: Date;
         isConfirmed: boolean;
-        createdAt: Date;
-        updatedAt: Date;
         businessId: string;
         inventoryItemId: string | null;
     }>;
@@ -26,27 +26,27 @@ export declare class TransactionsService {
         } | null;
     } & {
         id: string;
+        createdAt: Date;
+        updatedAt: Date;
         type: import("@prisma/client").$Enums.TransactionType;
         itemName: string;
         quantity: import("@prisma/client/runtime/library").Decimal;
         amount: import("@prisma/client/runtime/library").Decimal;
         timestamp: Date;
         isConfirmed: boolean;
-        createdAt: Date;
-        updatedAt: Date;
         businessId: string;
         inventoryItemId: string | null;
     })[]>;
     getByIdForUser(userId: string, transactionId: string): Promise<{
         id: string;
+        createdAt: Date;
+        updatedAt: Date;
         type: import("@prisma/client").$Enums.TransactionType;
         itemName: string;
         quantity: import("@prisma/client/runtime/library").Decimal;
         amount: import("@prisma/client/runtime/library").Decimal;
         timestamp: Date;
         isConfirmed: boolean;
-        createdAt: Date;
-        updatedAt: Date;
         businessId: string;
         inventoryItemId: string | null;
     }>;

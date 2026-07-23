@@ -177,3 +177,63 @@ export async function getTodaySummary(token: string): Promise<DailySummary> {
   });
   return handleResponse<DailySummary>(response);
 }
+
+// ============================================================
+// Voice
+// ============================================================
+
+export type VoiceProposal = {
+  audioId: string;
+  proposed: {
+    type: 'SALE' | 'PURCHASE' | 'EXPENSE';
+    itemName: string;
+    quantity: number;
+    amount: number;
+    confidence: number;
+    originalTranscript: string;
+  };
+};
+
+export async function uploadVoiceRecording(
+  token: string,
+  audioBlob: Blob,
+): Promise<VoiceProposal> {
+  const formData = new FormData();
+  formData.append('audio', audioBlob, 'recording.webm');
+
+  const response = await fetch(`${API_BASE_URL}/voice/log-sale`, {
+    method: 'POST',
+    headers: {
+      // Note: NO 'Content-Type' — browser sets it with the correct boundary
+      Authorization: `Bearer ${token}`,
+    },
+    body: formData,
+  });
+  return handleResponse<VoiceProposal>(response);
+}
+
+export async function confirmVoiceProposal(
+  token: string,
+  audioId: string,
+): Promise<Transaction> {
+  const response = await fetch(`${API_BASE_URL}/voice/confirm/${audioId}`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  return handleResponse<Transaction>(response);
+}
+
+export async function rejectVoiceProposal(
+  token: string,
+  audioId: string,
+): Promise<{ rejected: boolean }> {
+  const response = await fetch(`${API_BASE_URL}/voice/reject/${audioId}`, {
+    method: 'DELETE',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  return handleResponse<{ rejected: boolean }>(response);
+}
